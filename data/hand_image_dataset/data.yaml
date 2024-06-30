@@ -1,0 +1,6 @@
+path: C:\\Users\\iek42\\Projects\\guitar_technique_detection\\data\\hand_image_dataset
+train: .\\train\\
+val: .\\valid\\
+
+nc: 9
+names: ["left","right","6th string", "5th string", "4th string","3rd string","2nd string","1st string","fret board"]

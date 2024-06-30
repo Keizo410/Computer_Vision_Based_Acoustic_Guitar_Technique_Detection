@@ -1,0 +1,11 @@
+# Step 1
+- Train YOLO with yolo_train.py for hand detection and segmentation
+
+# Step 2
+- Segment hands from video clips for each guitar techniques
+
+# Step 3
+- Extract optical flow from each video clips and store normalized motion vectors as histgrams of motion for corresponding direction
+
+# Step 4
+- Train Multi LeNet classifier to classify the techniques based on the histgrams
