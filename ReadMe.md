@@ -35,7 +35,7 @@ Segment hands from video clips for each guitar technique using the trained YOLO 
 
 ```python
 # Your segmentation script here, for example:
-python hand_segmentation.py 
+python segment_hands.py 
 ```
 
 ### Step 3
@@ -51,7 +51,7 @@ Train the Multi LeNet classifier to classify the guitar techniques based on the 
 
 ```python
 # Your training script here, for example:
-python train_classifier.py 
+python train_mul.py 
 ```
 
 ## Summary
