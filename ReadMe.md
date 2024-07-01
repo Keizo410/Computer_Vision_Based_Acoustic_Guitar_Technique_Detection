@@ -64,3 +64,6 @@ python train_mul.py
 ## Summary
 
 This project involves detecting and segmenting hands from video clips, extracting optical flow to create histograms of motion, and training a neural network classifier to detect different acoustic guitar techniques. Follow the steps outlined above to preprocess your data, extract features, and train your classifier.
+
+## Note
+Although box-based feature points for optical flow extraction contributed to extracting overall hand motion in the detected box, other methods such as media pipe's hand landmark detection directly contribute to better hand motion extraction. Due to some compatibility issue, it is not implemented in this project; however, I probably add it once this project is dockerized or found compatibility with it.
