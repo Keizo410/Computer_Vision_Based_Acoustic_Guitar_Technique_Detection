@@ -1,4 +1,10 @@
 # Acoustic Guitar Technique Detection Model 
+## About
+This repository contains a computer-vision-based approach for detecting acoustic guitar techniques (Hammer-on, Pull-off, and Slide). This project has two sections for this project: __Data Preparation__ and __Model Training__. 
+### Subdirectories: 
+  * data - contains hand image, hand action, histogram of motion datasets.
+  * model - contains the checkpoint for multi-stream CNN.
+  * utils - contains each module to process data and re-examine or integrate for the future edition. 
 
 ## Prerequisite
 
