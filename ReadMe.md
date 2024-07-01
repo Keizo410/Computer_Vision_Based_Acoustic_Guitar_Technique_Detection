@@ -19,10 +19,11 @@ Train a YOLO model for detecting hands in video frames.
 
 #### 1.2 Hand Segmentation
 Use the trained YOLO model to segment hands from video frames.
+- Note: To deal with the case when the model didn't detect any hand in a frame, the hand segmentation box is set to be accumulative, meaning once the box is drawn on the screen it'll be carried to the next frame. In this way, we can prevent having the black frame due to the hand detection model's miss detection, which causes some trouble for the next optical flow extraction step. This could be removed once the hand detection model has more data to retrain for higher precision & recall. 
 
 #### 1.3 Optical Flow Extraction
 Extract optical flow from the segmented video clips and store the normalized motion vectors as histograms of motion for corresponding directions.
-
+- Note: Histograms of motion contain relative frequency over distance for corresponding direction, which are left, up left, up, up right, right, down right, down, down left, and no direction (not enough distance to determine the direction). Also, to get the main features of each technique motion, I set a minimum distance to be stored for histogram generation. 
 ### 2. Shallow Neural Networks Classification
 
 Train a shallow neural network classifier (Multi LeNet) to classify the guitar techniques based on the histograms of motion vectors.
