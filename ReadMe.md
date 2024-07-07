@@ -10,6 +10,8 @@ This repository contains a computer-vision-based approach for detecting acoustic
 
 - tbd
 
+- yolo train.py need full path for yaml file as well as yaml file's data path should be adjusted.
+
 ## Implementation
 
 ### 1. Data Processing & Feature Engineering
