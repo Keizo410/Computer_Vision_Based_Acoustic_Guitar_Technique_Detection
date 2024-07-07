@@ -1,4 +1,4 @@
-path: C:\\Users\\iek42\\Projects\\guitar_technique_detection\\data\\hand_image_dataset
+path: ..\\..\\guitar_technique_detection\\data\\hand_image_dataset 
 train: .\\train\\
 val: .\\valid\\
 
