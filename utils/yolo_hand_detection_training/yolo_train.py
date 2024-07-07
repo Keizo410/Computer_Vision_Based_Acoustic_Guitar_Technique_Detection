@@ -17,7 +17,7 @@ def train(dataset, epochs):
 
 def main():
   # Should be full path, otherwise errors
-  data = "C:\\Users/iek42\\Projects\\guitar_technique_detection\\data\\hand_image_dataset\\data.yaml"  
+  data = "..\\..\\guitar_technique_detection\\data\\hand_image_dataset\\data.yaml"  
   epochs = 200
   train(data, epochs)
 
