@@ -6,7 +6,11 @@ This repository contains a computer-vision-based approach for detecting acoustic
   * model - contains the checkpoint for multi-stream CNN.
   * utils - contains each module to process data and re-examine or integrate for the future edition. 
 
-## Prerequisite
+## Background 
+
+## Development Process:
+
+## How to use:
 
 - tbd
 
