@@ -1,0 +1,8 @@
+data_path: "datasets/hand_image_dataset/data.yaml"
+yolo_finetuned_weight_output_path: "utils/yolo_hand_detection_training/"
+detection_weight_path: "utils/yolo_hand_detection_training/runs/detect/train6/weights/best.pt"
+action_input_data_path: "datasets/actions_dataset/data/original"
+segmentation_output_data_path: "datasets/actions_dataset/data/segmented"
+optical_flow_output_data_path: "datasets/actions_dataset/data/optical_flow"
+histogram_of_motion_output_data_path: "datasets/histgram_of_motion_dataset"
+model_weight_output_path: "model"

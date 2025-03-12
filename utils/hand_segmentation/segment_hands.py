@@ -2,311 +2,20 @@ import os
 import cv2 as cv
 import numpy as np
 from ultralytics import YOLO
-
-
-def segment_boxes_lr(model, input_folder, output_folder):
-    expansion_factor = 0.01
-    accumulated_mask_left = None  # Initialize accumulated mask for left hand
-    accumulated_mask_right = None  # Initialize accumulated mask for right hand
-    iou_threshold = 0.5
-
-    # Ensure the output folder exists, create it if necessary
-    os.makedirs(output_folder, exist_ok=True)
-
-    # Define the classes you want to segment
-    target_classes = ["left", "right"]
-
-    # Iterate over MP4 files in the input folder
-    for filename in os.listdir(input_folder):
-        if filename.endswith(".MP4"):
-            input_video_path = os.path.join(input_folder, filename)
-            output_video_path = os.path.join(output_folder, filename)
-
-            accumulated_mask_left = None
-            accumulated_mask_right = None
-
-            # Open the input video file
-            cap = cv.VideoCapture(input_video_path)
-
-            # Check if the input video file was opened successfully
-            if not cap.isOpened():
-                print(f"Error: Could not open input video file {input_video_path}.")
-
-            # Get the video properties
-            frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-            frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-            frame_rate = cap.get(cv.CAP_PROP_FPS)
-
-            # Define the codec and create a VideoWriter object with the same frame rate
-            fourcc = cv.VideoWriter_fourcc(*'mp4v')
-            out = cv.VideoWriter(output_video_path, fourcc, frame_rate, (frame_width, frame_height))
-
-            # Iterate over frames in the input video
-            while True:
-                ret, frame = cap.read()
-
-                if not ret:
-                    break
-
-                result = model.predict(frame)
-                mask_left = np.zeros(frame.shape[:2], dtype=np.uint8)
-                mask_right = np.zeros(frame.shape[:2], dtype=np.uint8)
-
-                for r in result:
-                    img = np.copy(r.orig_img)
-
-                    for target_class in target_classes:
-                        target_detections = [d for d in r if d.names[d.boxes.cls.tolist().pop()] == target_class]
-
-                        for c in target_detections:
-                            box = c.boxes.xyxy[0]
-
-                            expanded_box = expand_box(box, expansion_factor, frame_width, frame_height)
-                            if target_class == "left":
-                                cv.rectangle(mask_left, (int(expanded_box[0]), int(expanded_box[1])), (int(expanded_box[2]), int(expanded_box[3])), (255), cv.FILLED)
-                            elif target_class == "right":
-                                cv.rectangle(mask_right, (int(expanded_box[0]), int(expanded_box[1])), (int(expanded_box[2]), int(expanded_box[3])), (255), cv.FILLED)
-
-                if accumulated_mask_left is None:
-                    accumulated_mask_left = mask_left
-                else:
-                    resized_mask_left = cv.resize(mask_left, (accumulated_mask_left.shape[1], accumulated_mask_left.shape[0]))
-                    accumulated_mask_left = cv.bitwise_or(accumulated_mask_left, resized_mask_left)
-
-                if accumulated_mask_right is None:
-                    accumulated_mask_right = mask_right
-                else:
-                    resized_mask_right = cv.resize(mask_right, (accumulated_mask_right.shape[1], accumulated_mask_right.shape[0]))
-                    accumulated_mask_right = cv.bitwise_or(accumulated_mask_right, resized_mask_right)
-
-                masked_frame_left = cv.bitwise_and(frame, frame, mask=accumulated_mask_left)
-                masked_frame_right = cv.bitwise_and(frame, frame, mask=accumulated_mask_right)
-                masked_frame_both = cv.bitwise_or(masked_frame_left, masked_frame_right)
-
-                out.write(masked_frame_both)
-
-            cap.release()
-            out.release()
-
-def segment_boxes_left(model, input_folder, output_folder):
-    expansion_factor = 0.1
-    accumulated_mask = None  # Initialize accumulated mask
-    iou_threshold=0.5
-    # Ensure the output folder exists, create it if necessary
-    os.makedirs(output_folder, exist_ok=True)
-
-    # Define the class you want to segment
-    target_class = "left"
-
-    # Iterate over MP4 files in the input folder
-    for filename in os.listdir(input_folder):
-        if filename.endswith(".mp4"):
-            input_video_path = os.path.join(input_folder, filename)
-            output_video_path = os.path.join(output_folder, filename)
-
-            accumulated_mask = None
-
-            # Open the input video file
-            cap = cv.VideoCapture(input_video_path)
-
-            # Check if the input video file was opened successfully
-            if not cap.isOpened():
-                print(f"Error: Could not open input video file {input_video_path}.")
-                
-
-            # Get the video properties
-            frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-            frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-            frame_rate = cap.get(cv.CAP_PROP_FPS)
-
-            # Define the codec and create a VideoWriter object with the same frame rate
-            fourcc = cv.VideoWriter_fourcc(*'mp4v')
-            out = cv.VideoWriter(output_video_path, fourcc, frame_rate, (frame_width, frame_height))
-
-            # Iterate over frames in the input video
-            while True:
-                # Read a frame from the input video
-                ret, frame = cap.read()
-
-                # Check if the frame was read successfully
-                if not ret:
-                    break
-
-                # Run inference on the frame
-                result = model.predict(frame)
-
-                # Initialize an empty mask for the frame
-                mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-
-                # Iterate over detection results
-                for r in result:
-                    img = np.copy(r.orig_img)
-
-                    # Filter detection results based on the target class
-                    target_detections = [d for d in r if d.names[d.boxes.cls.tolist().pop()] == target_class]
-
-                    # Iterate each object contour for the target class
-                    for c in target_detections:
-                        # Extract bounding box coordinates
-                        box = c.boxes.xyxy[0]
-
-                        expanded_box = expand_box(box, expansion_factor, frame_width, frame_height)
-
-                        # Create a binary mask around the detected box
-                        # cv.rectangle(mask, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255), cv.FILLED)
-                        cv.rectangle(mask, (int(expanded_box[0]), int(expanded_box[1])), (int(expanded_box[2]), int(expanded_box[3])), (255), cv.FILLED)
-
-
-                # Update accumulated mask
-                if accumulated_mask is None:
-                    accumulated_mask = mask
-                else:
-                    # Resize the current mask to match the dimensions of the accumulated mask
-                    resized_mask = cv.resize(mask, (accumulated_mask.shape[1], accumulated_mask.shape[0]))
-                    accumulated_mask = cv.bitwise_or(accumulated_mask, resized_mask)                               
-
-                # Apply the accumulated mask to the frame
-                masked_frame = cv.bitwise_and(frame, frame, mask=accumulated_mask)
-                # Write the masked frame to the output video
-                out.write(masked_frame)
-
-
-            # Release the input and output video objects
-            cap.release()
-            out.release()
-
-def segment_boxes_right(model, input_folder, output_folder):
-    expansion_factor = 0.1
-    accumulated_mask = None  # Initialize accumulated mask
-    iou_threshold=0.5
-    # Ensure the output folder exists, create it if necessary
-    os.makedirs(output_folder, exist_ok=True)
-
-    # Define the class you want to segment
-    target_class = "right"
-
-    # Iterate over MP4 files in the input folder
-    for filename in os.listdir(input_folder):
-        if filename.endswith(".mp4"):
-            input_video_path = os.path.join(input_folder, filename)
-            output_video_path = os.path.join(output_folder, filename)
-
-            accumulated_mask = None
-
-            # Open the input video file
-            cap = cv.VideoCapture(input_video_path)
-
-            # Check if the input video file was opened successfully
-            if not cap.isOpened():
-                print(f"Error: Could not open input video file {input_video_path}.")
-                
-
-            # Get the video properties
-            frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-            frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-            frame_rate = cap.get(cv.CAP_PROP_FPS)
-
-            # Define the codec and create a VideoWriter object with the same frame rate
-            fourcc = cv.VideoWriter_fourcc(*'mp4v')
-            out = cv.VideoWriter(output_video_path, fourcc, frame_rate, (frame_width, frame_height))
-
-            # Iterate over frames in the input video
-            while True:
-                # Read a frame from the input video
-                ret, frame = cap.read()
-
-                # Check if the frame was read successfully
-                if not ret:
-                    break
-
-                # Run inference on the frame
-                result = model.predict(frame)
-
-                # Initialize an empty mask for the frame
-                mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-
-                # Iterate over detection results
-                for r in result:
-                    img = np.copy(r.orig_img)
-
-                    # Filter detection results based on the target class
-                    target_detections = [d for d in r if d.names[d.boxes.cls.tolist().pop()] == target_class]
-
-                    # Iterate each object contour for the target class
-                    for c in target_detections:
-                        # Extract bounding box coordinates
-                        box = c.boxes.xyxy[0]
-
-                        expanded_box = expand_box(box, expansion_factor, frame_width, frame_height)
-
-                        # Create a binary mask around the detected box
-                        # cv.rectangle(mask, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255), cv.FILLED)
-                        cv.rectangle(mask, (int(expanded_box[0]), int(expanded_box[1])), (int(expanded_box[2]), int(expanded_box[3])), (255), cv.FILLED)
-                                
-                # Apply the accumulated mask to the frame
-                masked_frame = cv.bitwise_and(frame, frame, mask=accumulated_mask)
-                # Write the masked frame to the output video
-                out.write(masked_frame)
-
-
-            # Release the input and output video objects
-            cap.release()
-            out.release()
-
-def get_right(model, input_folder, output_folder):
-    # Ensure the output folder exists, create it if necessary
-    os.makedirs(output_folder, exist_ok=True)
-
-    # Iterate over MP4 files in the input folder
-    for filename in os.listdir(input_folder):
-        if filename.endswith(".mp4"):
-            input_video_path = os.path.join(input_folder, filename)
-            output_video_path = os.path.join(output_folder, filename)
-
-            # Open the input video file
-            cap = cv.VideoCapture(input_video_path)
-
-            # Check if the input video file was opened successfully
-            if not cap.isOpened():
-                print(f"Error: Could not open input video file {input_video_path}.")
-                continue
-
-            # Get the video properties
-            frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-            frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-            frame_rate = cap.get(cv.CAP_PROP_FPS)
-
-            # Define the codec and create a VideoWriter object with the same frame rate
-            fourcc = cv.VideoWriter_fourcc(*'mp4v')
-            out = cv.VideoWriter(output_video_path, fourcc, frame_rate, (frame_width, frame_height))
-
-            # Iterate over frames in the input video
-            while True:
-                # Read a frame from the input video
-                ret, frame = cap.read()
-
-                # Check if the frame was read successfully
-                if not ret:
-                    break
-
-                # Initialize a mask with all ones (no masking)
-                mask = np.ones_like(frame[:, :, 0], dtype=np.uint8)
-
-                # Mask out the right side of the frame
-                mask[:, frame_width // 2:] = 0
-
-                # Apply the mask to the frame
-                masked_frame = cv.bitwise_and(frame, frame, mask=mask)
-
-                # Write the masked frame to the output video
-                out.write(masked_frame)
-
-            # Release the input and output video objects
-            cap.release()
-            out.release()
-
-def expand_box(box, expansion_factor, frame_width, frame_height):
-    x1, y1, x2, y2 = box
+from pathlib import Path
+import yaml 
+
+def expand_box(box_shape, expansion_factor, frame_width, frame_height):
+    """
+    A method to expand input box by multipling by expansion_factor.
+
+    args:
+    box_shape(int,int,int,int): box shape left top (x, y) and right bottom (x, y).
+    expansion_factor(int): expansion factor to expand segmented box.
+    frame_width(int): orignal frame widht
+    frame_height(int): original frame height
+    """
+    x1, y1, x2, y2 = box_shape
     width = x2 - x1
     height = y2 - y1
     new_x1 = max(0, int(x1 - expansion_factor * width))
@@ -314,19 +23,111 @@ def expand_box(box, expansion_factor, frame_width, frame_height):
     new_x2 = min(frame_width, int(x2 + expansion_factor * width))
     new_y2 = min(frame_height, int(y2 + expansion_factor * height))
     return new_x1, new_y1, new_x2, new_y2
+    
+def get_target_detection_result(results, target_class):
+    """
+    A method to extract target class from detection results.
+
+    args:
+    results
+    target_class(str): target class for detection.
+    """
+    target_detections = []
+    for detection in results:
+        class_indices = detection.boxes.cls.tolist()
+        if class_indices:  
+            class_index = int(class_indices[0])  
+            class_name = detection.names[class_index]  # Get class name
+    
+            if class_name == target_class:
+                target_detections.append(detection)
+    return target_detections
+
+    
+def segment_hand(model, input_folder, output_folder, expansion_factor = 0.1, target_class = "left"):
+    """
+    A method to segment an object from background by going through each video frame. 
+    To minimize the effect of hand detection failure, segmentation box expansion is implemented,
+    which keeps the detected hand box even the detection model missed and "grow" the box accumulatively 
+    when the object moved out of the previous box area. 
+
+    args: 
+    target_class(str): a target class to detect and segment.
+    model(str): hand detection model weight path.
+    input_folder(str): input video folder path
+    output_folder(str):  output video folder path
+    expansion_factor(float): a float number for box expansion factor.
+    """
+    os.makedirs(output_folder, exist_ok=True)
+
+    for filename in os.listdir(input_folder):
+        if filename.endswith(".mp4"):
+            input_video_path = os.path.join(input_folder, filename)
+            output_video_path = os.path.join(output_folder, filename)
+            
+            cumulative_mask = None
+
+            cap = cv.VideoCapture(input_video_path)
+
+            if not cap.isOpened():
+                print(f"Error: Could not open input video file {input_video_path}.")
+
+            frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+            frame_rate = cap.get(cv.CAP_PROP_FPS)
+
+            fourcc = cv.VideoWriter_fourcc(*'mp4v')
+            out = cv.VideoWriter(output_video_path, fourcc, frame_rate, (frame_width, frame_height))
+
+            while True:
+
+                ret, frame = cap.read()
+
+                if not ret:
+                    break
+
+                results = model.predict(frame)
+                
+                #frame.shape: [width, height, channel]
+                mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+
+                for result in results:
+                    target_detections = get_target_detection_result(result, target_class)
+                    for contour in target_detections:
+                        box = contour.boxes.xyxy[0] # bounding box coordinates
+                        expanded_box = expand_box(box, expansion_factor, frame_width, frame_height)
+                        cv.rectangle(mask, (int(expanded_box[0]),int(expanded_box[1])),(int(expanded_box[2]),int(expanded_box[3])), (255), cv.FILLED)
+
+                if cumulative_mask is None:
+                   cumulative_mask = mask
+                else:
+                    CUMULATIVE_MASK_HEIGHT = cumulative_mask.shape[0]
+                    CUMULATIVE_MASK_WIDTH = cumulative_mask.shape[1]
+                    resized_mask = cv.resize(mask, (CUMULATIVE_MASK_WIDTH, CUMULATIVE_MASK_HEIGHT))
+                    cumulative_mask = cv.bitwise_or(cumulative_mask, resized_mask)
+
+                masked_frame = cv.bitwise_and(frame, frame, mask = cumulative_mask)
+                out.write(masked_frame)
+
+            cap.release()
+            out.release()
 
 def main():
 
-    input_folder = "../../../guitar_technique_detection/data/actions_dataset/data/original"
-    output_folder= "../../../guitar_technique_detection/data/actions_dataset/data/segmented"
+    BASE_DIR = Path.cwd().parent.parent
+    
+    with open(BASE_DIR / "config.yaml", "r") as f:
+        config = yaml.safe_load(f)
 
-    # Load a model
-    model = YOLO('../../utils/yolo_hand_detection_training/runs/detect/train6/weights/best.pt')
+    weights_path = BASE_DIR / config["detection_weight_path"]
+    input_folder = BASE_DIR / config["action_input_data_path"]
+    output_folder= BASE_DIR / config["segmentation_output_data_path"]
 
+    model = YOLO(weights_path)
     for folder in os.listdir(input_folder):
         input = os.path.join(input_folder, folder)
         output = os.path.join(output_folder, folder)
-        segment_boxes_left(model, input, output)
+        segment_hand(model, input, output)
 
 if __name__ == "__main__":
     main()

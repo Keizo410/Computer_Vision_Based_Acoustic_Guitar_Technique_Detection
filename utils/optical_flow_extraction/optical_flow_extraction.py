@@ -2,92 +2,78 @@ import cv2
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import cv2 as cv
+from pathlib import Path
+import yaml 
+import numpy as np 
+import matplotlib.pyplot as plt
 
-def calculate_direction(old_point, new_point):
+BASE_DIR = Path.cwd().parent.parent
+
+with open(BASE_DIR / "config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+histogram_output_folder_path = BASE_DIR / config["histogram_of_motion_output_data_path"]
+
+MAX_FRET_MOVEMENT_THRESHOLD = 18 
+MIN_MOVEMENT_DISTANCE = 0.01
+
+def check_fret_movement(down_direction, up_direction):
+    """
+    A method to detect the stored movement is due to fret movement, not finger movement.
+
+    args:
+    down_direction(int): 
+    up_direction(int): 
+    return:
+    boolean: True if fretmovement is detected, otherwise False. 
+    """
+    if down_direction < MAX_FRET_MOVEMENT_THRESHOLD or up_direction < MAX_FRET_MOVEMENT_THRESHOLD:
+        return False
+    return True
+    
+def eliminate_displacement(displacement, threshold):
+    """
+    A method to eliminate a small displacement by selected threshold.
+
+    args: 
+    displacement(int): a size of displacement vector
+    threshold(int): a int value for thresholding
+
+    return:
+    displacement(int): processed displacement
+    """
+    if displacement < threshold:
+        return 0
+    return displacement
+    
+def calculate_direction(old_points, new_points):
     """
     Calculate the direction from an old point to a new point.
 
-    :param old_point: Coordinates of the old point as a tuple (x, y).
-    :param new_point: Coordinates of the new point as a tuple (x, y).
-    :return: Angle (in radians) representing the direction from the old point to the new point.
+    param
+    old_point: Coordinates of the old point as a tuple (x, y).
+    new_point: Coordinates of the new point as a tuple (x, y).
+    
+    return: Angle (in radians) representing the direction from the old point to the new point.
     """
-    # Compute the displacement vector from the old point to the new point
-    displacement = np.array(new_point) - np.array(old_point)
-
-    # Calculate the distance between the points
+    displacement = np.array(new_points) - np.array(old_points)
     distance = np.linalg.norm(displacement)
 
-    # If there's no movement (distance is close to zero), return the "no movement" sector index
-    if distance < 0.01:
+    if distance < MIN_MOVEMENT_DISTANCE:
         return distance, 8
 
-    # Compute the angle (in radians) between the displacement vector and the x-axis
     direction_rad = np.arctan2(displacement[1], displacement[0])
-
-    # Convert the angle to degrees
     direction_deg = np.degrees(direction_rad)
 
-    # Ensure the angle is positive
     if direction_deg < 0:
         direction_deg += 360
 
-    # Calculate the direction sector index (0 to 7)
-    direction_sector = int(direction_deg / 45)
+    direction_section = int(direction_deg/45)
 
-    # print("displacement: ", distance)
-    # print("degree: ", direction_sector)
+    return distance, direction_section
 
-    return distance, direction_sector
-
-#block number should be able to create n x n blocks
-def block_featrues(frame, seg_info, n):
-    boo = False 
-    try:
-        # frame_info should contain [x , y, w, h]. This is segmented part info from frame. Then calculate the blocks withing this segment
-        x = int(seg_info[2]/(n+1)) # 1 block width
-        y = int(seg_info[3]/(n+1)) # 1 block height
-        sx = seg_info[0]    # starting point of segment area
-        sy = seg_info[1]    # starting point of segment area
-
-        array =[]
-        for h in range(n):
-            for v in range(n):
-                a = (v+1)*x  #width
-                b = (h+1)*y  #height
-                a = int(sx + a)
-                b = int(sy + b)
-                array.append([np.float32(a), np.float32(b)])
-
-        array = np.array(array)
-        array = array.reshape(n*n, 1, 2)
-
-        boo = True
-
-    except Exception as e : 
-        boo = False 
-        print(e)
-        cv2.imshow("error", frame)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-    
-    finally:
-        return boo, array
-
-def seg_coordination(frame):
-    # Threshold the frame to create a binary mask
-    _, thresh = cv2.threshold(frame, 1, 255, cv2.THRESH_BINARY)
-
-    # Find contours in the binary mask
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-  
-    # Find the bounding box of the largest contour
-    if contours:
-        largest_contour = max(contours, key=cv2.contourArea)
-        x, y, w, h = cv2.boundingRect(largest_contour)
-
-        return [x, y, w, h]
-
-def create_histgram_of_motion(dictionary, class_name, size = 0, case_num = None, frame_count = None):
+def create_histgram_of_motion(dictionary, class_name, case_num = None, frame_count = None):
     """
     Create histogram for each direction. x axis is magnitude and y axis is frequencies.
     0 : Right
@@ -99,187 +85,206 @@ def create_histgram_of_motion(dictionary, class_name, size = 0, case_num = None,
     6 : Down
     7 : Down Right
     8 : No Direction
+
+    args:
+    dictionary(python dict): a python dictionary containing distances for each direction.
+    class_name(str): a class of the action type
+    case_num(int): a case number of the video  
+    frame_count(int): a total number of frames within a video
     """
     for key, distances in dictionary.items():
-    
-        if(len(distances)>0):
-            # print("max distance: ", max(distances))
+
+        if len(distances) > 0:
             max_distance = max(distances)
         else:
             max_distance = 0
 
-        # total_size=len(distances)
         total_size = frame_count
-        # Calculate relative frequencies
         hist, _ = np.histogram(distances, bins=20, range=(0, max_distance))
         relative_frequencies = hist / total_size
 
-        # Plot relative frequencies
         plt.bar(np.arange(20), relative_frequencies, color='blue', edgecolor='black', width=0.8)
         plt.ylim(0, 1)
-        # Set labels and title
-        # plt.xlabel('Distance')
-        # plt.ylabel('Relative Frequency')
-        # plt.title(f'Histogram for Distance (Direction {key})')
 
-        if not os.path.exists(f'../../../guitar_technique_detection/data/histgram_of_motion_dataset/{class_name}/{case_num-1}/'):
-            os.makedirs(f'../../../guitar_technique_detection/data/histgram_of_motion_dataset/{class_name}/{case_num-1}/')
-
-        plt.savefig(f'../../../guitar_technique_detection/data/histgram_of_motion_dataset/{class_name}/{case_num-1}/{key}.png')
+        os.makedirs(f'{histogram_output_folder_path}/{class_name}/{case_num-1}/', exist_ok=True)
+        plt.savefig(f'{histogram_output_folder_path}/{class_name}/{case_num-1}/{key}.png')
         plt.clf()
+        
     
-def extract_optical_flow(input_folder, output_folder, class_name, size = None, threshold = 2):
-    # Create output folder if it doesn't exist
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+def segmentation_coordinations(frame):
+    """
+    A method for finding a bounding box (segmented area) information (x, y, w, h) out of black background.
 
-    # check there is size specification: if there is not specification, then iterate all of the files in the folder
+    args:
+    frame(image): an image frame with segmented area and black background. 
+    
+    return:
+    a first frame image.
+    a list of coordinates of the segmentation area.
+    """
+    frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY) #make the frame greyscale for easier binary threshold
+    _, binary_image = cv.threshold(frame, 1, 255, cv.THRESH_BINARY)
+    contours, _  = cv.findContours(binary_image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+    if contours:
+        segmented_box = max(contours, key=cv.contourArea)
+        x,y,w,h = cv.boundingRect(segmented_box)
+        return frame, [x, y, w, h]
+    
+def block_features(frame, coordinates, n_blocks):
+    """
+    A method for generating a block-based feature points to track during optical flow extraction.
+
+    Args:
+        frame (image): An image frame with segmentation.
+        coordinates ([int]): A list of coordinates of the bounding box (segmentation area) in black background.
+        n_blocks (int): Number of blocks to set tracking points.
+
+    Returns:
+        bool: Boolean value to check if the process was successful.
+        np.ndarray: Numpy array containing feature point coordinates.
+    """
+    boo = False
+    result = None  
+    try:
+        start_x, start_y, width, height = coordinates
+
+        x = int(width / (n_blocks + 1))
+        y = int(height / (n_blocks + 1))
+
+        result = []
+        for row in range(n_blocks):
+            for col in range(n_blocks):
+                box_point_x = int(start_x + (col + 1) * x)
+                box_point_y = int(start_y + (row + 1) * y)
+                result.append([np.float32(box_point_x), np.float32(box_point_y)])
+
+        result = np.array(result)
+
+        if result.shape[0] == n_blocks * n_blocks:
+            result = result.reshape(n_blocks * n_blocks, 1, 2)
+        else:
+            raise ValueError("Unexpected number of feature points in result.")
+
+        boo = True
+
+    except Exception as e:
+        print("Error at Block Feature Generation function:", e)
+
+        debug_mode = True
+        if debug_mode:
+            cv.imshow("error", frame)
+            cv.waitKey(0)
+            cv.destroyAllWindows()
+
+    finally:
+        return boo, result
+                    
+def extract_optical_flow(input_folder, output_folder, class_name, size=None, threshold=2):
+    """
+    A method for processing a video to draw/track optical flow. 
+    """
+    os.makedirs(output_folder, exist_ok=True)
+
     if(size is None):
         size = len(os.listdir(input_folder))
 
-    # parameter for Lucas-kanade optical flow
-    lk_params = dict(winSize=(50, 50), maxLevel=2, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
-    # variable for color to draw optical flow track
+    #Lukas-kanade optical flow parameters
+    lk_params = dict(winSize=(50,50), maxLevel=2, criteria=(cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
     color = (0, 255, 0)
-
-    # direction array
-    dictionary = {0:[],1:[],2:[],3:[],4:[],5:[],6:[],7:[],8:[]}
-    direction = []
-    displacement = []
-    frame_count = 0  # Initialize frame count
-
-    # Initialize a variable to keep track of the number of processed videos
+    dictionary = {0:[],1:[],2:[],3:[],4:[],5:[],6:[],7:[],8:[]} #directions 0 - 8 which is top, right top, ... etc.
+    frame_count = 0
     num_videos_processed = 0
-
-    # Initialize a variable to keep track of the video number
     case_num = 0
 
-    # Loop through videos in input folder until the desired number is reached
     while num_videos_processed < size:
+        video_list = os.listdir(input_folder)
+        for video_file_name in video_list:
+            video_file_path = os.path.join(input_folder, video_file_name)
+            cap = cv.VideoCapture(video_file_path)
 
-        # get list of files
-        videos = os.listdir(input_folder)
-        
-        # Check if the number of processed videos has reached the desired size
-        if num_videos_processed >= size:
-            break
-
-        # Loop through videos in input folder
-        for video_file in videos:
-
-            # Check if the number of processed videos has reached the desired size
-            if num_videos_processed >= size:
-                break
-
-            # make
-
-            video_path = os.path.join(input_folder, video_file)
-            cap = cv2.VideoCapture(video_path)
-            
             if not cap.isOpened():
-                print(f"Error: Could not open {video_file}")
+                print(f"Error: Could not open {video_file_path}")
                 case_num = case_num - 1
                 continue
 
-            # Define codec and VideoWriter object
-            fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-            out_video_path = os.path.join(output_folder, f"optical_flow_{video_file}")
-            out = cv2.VideoWriter(out_video_path, fourcc, 20.0, (640, 480))
+            fourcc = cv.VideoWriter_fourcc(*'mp4v')
+            output_video_path = os.path.join(output_folder, f"optical_flow_{video_file_name}")
+            output_writer = cv.VideoWriter(output_video_path, fourcc, 20.0, (640, 480))
 
             ok, frame = cap.read()
 
-            # Check if the frame is all black
-            if np.all(frame == 0):
-                print("here")
-                continue  # Skip this frame
-                    
-            prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            if np.all(frame==0):
+                print("frame skipped due to mal-detection. No hand segmentation was happened on this frame.")
+                continue
 
-            #get block based points to track
-            # prev = cv2.goodFeaturesToTrack(prev_gray, mask=None, **feature_params)
-            coord = seg_coordination(prev_gray)
+            # prev_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
             
-            boo, prev = block_featrues(frame, coord, 6)
+            first_grayscale_frame, coordinates = segmentation_coordinations(frame)
+
+            boo, first_feature_points = block_features(frame, coordinates, 6)
 
             mask = np.zeros_like(frame)
 
             while cap.isOpened():
                 ok, frame = cap.read()
+                
                 if not ok:
                     break
-
-                # Increment frame count
+                    
                 frame_count += 1
-
-                # Check if the frame is all black
-                if np.all(frame == 0):
-                    print("here")
-                    continue  # Skip this frame
-
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                
+                if np.all(frame==0):
+                    prinit("Blank frame is detected")
+                    continue
+                    
+                cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
+                next_grayscale_frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
 
                 # calculates sparse optical flow by Lucas-Kanade method
-                next, status, error = cv2.calcOpticalFlowPyrLK(prev_gray, gray, prev, None, **lk_params)
-                # selects good feature points for previous position
-                good_old = prev[status == 1]
-                # selects good feature points for next position
-                good_new = next[status == 1]
-                
+                next_feature_points, status, error = cv.calcOpticalFlowPyrLK(first_grayscale_frame, next_grayscale_frame, first_feature_points, None, **lk_params)
+                good_old = first_feature_points[status==1]
+                good_new = next_feature_points[status==1]
+
                 direction_detector = {0:0,1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0}
                 sub_dictionary = {0:[],1:[],2:[],3:[],4:[],5:[],6:[],7:[],8:[]}
-                # Draws the optical flow tracks
+
                 for i, (new, old) in enumerate(zip(good_new, good_old)):
-                    # Returns a contiguous flattened array as (x, y) coordinates for new point
-                    a, b = new.ravel()
-                    # Returns a contiguous flattened array as (x, y) coordinates for old point
-                    c, d = old.ravel()
+                    new_x, new_y = new.ravel()
+                    old_x, old_y = old.ravel()
 
-                    # calculate the direction and save it to the array to make histogram
-                    disp, dirct = calculate_direction((c,d), (a,b))
+                    displacement, direction = calculate_direction((old_x, old_y), (new_x, new_y))
 
-                    # set threshold to eliminate small vectors
-                    if(disp< threshold):
-                        disp = 0
+                    displacement = eliminate_displacement(displacement, threshold)
 
-                    # # not include zero
-                    if(disp != 0):
-                        direction_detector[dirct] = direction_detector[dirct]+1
-                        sub_dictionary[dirct].append(disp)
+                    if displacement != 0: 
+                        direction_detector[direction] = direction_detector[direction]+1
+                        sub_dictionary[direction].append(displacement)
 
-                        # dictionary[dirct].append(disp)
+                    mask_with_flow = cv.line(mask, (int(new_x), int(new_y)), (int(old_x),int(old_y)), color, 1)
+                    frame = cv.circle(frame, (int(new_x), int(new_y)), 1, color, -1)
 
-                    # Draws line between new and old position with green color and 2 thickness
-                    mask = cv2.line(mask, (int(a), int(b)), (int(c), int(d)), color, 1)
-                    # Draws filled circle (thickness of -1) at new position with green color and radius of 3
-                    frame = cv2.circle(frame, (int(a), int(b)), 1, color, -1)
-
-                if(direction_detector[2] < 18 or direction_detector[6] < 18 ):
-                    # print(max(direction_detector))
-                    for key, value in sub_dictionary.items():
-                        for element in value:
+                if not check_fret_movement(direction_detector[2], direction_detector[6]):
+                    for key, values in sub_dictionary.items():
+                        for element in values:
                             dictionary[key].append(element)
 
-                # Overlays the optical flow tracks on the original frame
-                output = cv2.add(frame, mask)
+                #update frame and feature points to next frame info
+                first_grayscale_frame = next_grayscale_frame.copy()
+                first_feature_points = good_new.reshape(-1, 1, 2)
 
-                # Updates previous frame
-                prev_gray = gray.copy()
-                # Updates previous good feature points
-                prev = good_new.reshape(-1, 1, 2)
+                #write processed frame 
+                output_frame = cv.add(frame, mask)
+                output_writer.write(output_frame)
 
-                # Write the frame to output video
-                out.write(output)
-
-            # Release resources
+            # Release the resources
             cap.release()
-            out.release()
-            cv2.destroyAllWindows()
+            output_writer.release()
+            cv.destroyAllWindows()
 
-            print(f"Sparse optical flow video saved: {out_video_path}")
-
+            print(f"Sparse optical flow video saved: {output_video_path}")
+                    
             num_videos_processed += 1
             case_num += 1
 
@@ -287,18 +292,20 @@ def extract_optical_flow(input_folder, output_folder, class_name, size = None, t
             print("Iteration at: ", class_name)
             print("Current Number: ",num_videos_processed)
             print("case number: ", case_num)
-            create_histgram_of_motion(dictionary, class_name, size, case_num, frame_count)
+            create_histgram_of_motion(dictionary, class_name, case_num, frame_count)
 
+            # Initialize dictionary and frame count for next video
             dictionary = {0:[],1:[],2:[],3:[],4:[],5:[],6:[],7:[],8:[]}
-            direction = []
-            displacement = []
-            frame_count = 0  # Initialize frame count    
+            frame_count = 0  
 
 def main():
-    input_folder_path = "../../../guitar_technique_detection/data/actions_dataset/data/segmented"
-    output_folder_path = "../../../guitar_technique_detection/data/actions_dataset/data/optical_flow"
+    
+    with open(BASE_DIR / "config.yaml", "r") as f:
+        config = yaml.safe_load(f)
 
-    # iterate through each technique folders
+    input_folder_path = BASE_DIR / config["segmentation_output_data_path"]
+    output_folder_path = BASE_DIR / config["optical_flow_output_data_path"]
+    
     for folder in os.listdir(input_folder_path):
         if(folder != "norm"):
             input_folder = os.path.join(input_folder_path, folder)
@@ -307,4 +314,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
