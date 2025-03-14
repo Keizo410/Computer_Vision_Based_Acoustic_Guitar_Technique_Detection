@@ -11,7 +11,7 @@ This repository contains research code for training a multi-stream CNN on histog
 
 3. Fine-tune YOLO v8n model with hand images
 
-    ![Alt text](utils\yolo_hand_detection_training\runs\detect\train6\val_batch1_pred.jpg)
+    ![Alt text](yoloExample.jpg)
 
 4. Segment a hand from the background of video clips
    
