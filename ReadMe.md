@@ -14,9 +14,11 @@ This repository contains research code for training a multi-stream CNN on histog
     ![Alt text](utils\yolo_hand_detection_training\runs\detect\train6\val_batch1_pred.jpg)
 
 4. Segment a hand from the background of video clips
-    ![Alt text](box_feature_segmented.png)
-5. Extract optical flow from those segmented area and store the result for model training
-6. Build, Train, and Test the model
+   
+    ![Alt text](boxFeatureSegmented.png)
+      
+6. Extract optical flow from those segmented area and store the result for model training
+7. Build, Train, and Test the model
     ![Alt text](modelArc.png)
 ## Project Structure
 #### datasets/ -> required & processed datasets.
